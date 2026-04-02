@@ -1,6 +1,21 @@
 # Country Information AI Agent
 
-An AI agent built with **LangGraph** and **Claude** that answers natural language questions about countries using the public [REST Countries API](https://restcountries.com).
+A production-grade AI agent that answers natural language questions about any country — built with **LangGraph**, **Groq (LLaMA 3.3 70B)**, and the public [REST Countries API](https://restcountries.com).
+
+**Live Demo:** [https://country-agent.onrender.com](https://country-agent.onrender.com)
+
+---
+
+## What it does
+
+Ask questions like:
+- *"What is the capital and currency of Japan?"*
+- *"What languages are spoken in Switzerland?"*
+- *"What is the population of Brazil?"*
+
+The agent understands natural language, fetches real data, and returns a grounded plain-English answer. Typos are handled gracefully — asking about *"Cndia"* returns the correct answer for India with a note that the name was corrected.
+
+---
 
 ## Architecture
 
@@ -8,46 +23,66 @@ An AI agent built with **LangGraph** and **Claude** that answers natural languag
 User Query
     │
     ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      LangGraph Agent                        │
-│                                                             │
-│  ┌──────────────┐     ┌──────────────┐   ┌──────────────┐  │
-│  │ intent_node  │────▶│  tool_node   │──▶│synthesis_node│  │
-│  │              │     │              │   │              │  │
-│  │ LLM extracts │     │ Calls REST   │   │ LLM formats  │  │
-│  │ country name │     │ Countries API│   │ the answer   │  │
-│  │ + fields     │     │ (httpx)      │   │              │  │
-│  └──────────────┘     └──────────────┘   └──────────────┘  │
-│        │ (invalid intent)                        ▲          │
-│        └────────────────────────────────────────┘          │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                       LangGraph Agent                        │
+│                                                              │
+│  ┌─────────────┐      ┌─────────────┐    ┌───────────────┐  │
+│  │ intent_node │─────▶│  tool_node  │───▶│synthesis_node │  │
+│  │             │      │             │    │               │  │
+│  │ LLM detects │      │ REST        │    │ LLM formats   │  │
+│  │ country +   │      │ Countries   │    │ plain-English │  │
+│  │ fields      │      │ API (httpx) │    │ answer        │  │
+│  └─────────────┘      └─────────────┘    └───────────────┘  │
+│        │ (invalid / unrecognised)                 ▲          │
+│        └─────────────────────────────────────────┘          │
+└──────────────────────────────────────────────────────────────┘
     │
     ▼
 Final Answer
 ```
 
-### Agent Nodes
+### The three nodes
 
-| Node | Role | LLM? |
-|------|------|------|
-| `intent_node` | Extracts country name and requested fields via structured output | Yes |
-| `tool_node` | Fetches data from REST Countries API | No |
-| `synthesis_node` | Generates a natural language answer from the data | Yes |
+| Node | Responsibility | Uses LLM |
+|------|---------------|----------|
+| `intent_node` | Extracts country name and requested fields using structured output. Detects and flags typos (`was_corrected`). | Yes |
+| `tool_node` | Calls REST Countries API. Tries exact match first (`fullText=true`), falls back to scored partial match to avoid wrong results for "China", "India", etc. | No |
+| `synthesis_node` | Produces a grounded natural language answer. Acknowledges typo corrections, partial data, and API errors transparently. | Yes |
 
-### Conditional Routing
+### Conditional routing
 
-- If intent is **invalid** (no country found in query) → skip API call → synthesis explains the issue
-- If intent is **valid** → fetch API → synthesis answers using real data
-- All error cases (API not found, timeout, partial data) are handled gracefully in synthesis
+```
+intent_node
+    ├── VALID   → tool_node → synthesis_node
+    └── INVALID → synthesis_node  (API call skipped)
+```
 
-## Quick Start
+Error cases (`not_found`, `api_error`, `partial_data`) are classified in `tool_node` and handled gracefully in `synthesis_node` — the agent always returns a meaningful response.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Agent orchestration | LangGraph |
+| LLM | Groq — LLaMA 3.3 70B Versatile |
+| API framework | FastAPI (async) |
+| HTTP client | httpx (async, shared client) |
+| Data source | REST Countries API (free, no auth) |
+| Config | pydantic-settings |
+| Deployment | Render |
+
+---
+
+## Local Setup
 
 ### 1. Clone and install
 
 ```bash
-git clone <repo-url>
-cd cloudeagle
-python -m venv .venv && source .venv/bin/activate
+git clone https://github.com/debashish-datascience1/country-agent.git
+cd country-agent
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 ```
 
@@ -55,8 +90,14 @@ pip install -r requirements.txt
 
 ```bash
 cp .env.example .env
-# Edit .env and set your ANTHROPIC_API_KEY
 ```
+
+Edit `.env`:
+```
+GROQ_API_KEY=your_groq_api_key_here
+```
+
+Get a free Groq key at [console.groq.com](https://console.groq.com) — no credit card required.
 
 ### 3. Run
 
@@ -64,67 +105,109 @@ cp .env.example .env
 uvicorn app.main:app --reload
 ```
 
-Open [http://localhost:8000/docs](http://localhost:8000/docs) to use the interactive API docs.
+Open [http://localhost:8000](http://localhost:8000) for the web UI, or [http://localhost:8000/docs](http://localhost:8000/docs) for the API docs.
 
-### 4. Example requests
+---
+
+## API Reference
+
+### `POST /api/ask`
 
 ```bash
-# Capital and currency
-curl -X POST http://localhost:8000/ask \
+curl -X POST http://localhost:8000/api/ask \
   -H "Content-Type: application/json" \
   -d '{"query": "What is the capital and currency of Japan?"}'
-
-# Population
-curl -X POST http://localhost:8000/ask \
-  -d '{"query": "What is the population of Germany?"}' \
-  -H "Content-Type: application/json"
-
-# Multiple fields
-curl -X POST http://localhost:8000/ask \
-  -d '{"query": "What languages are spoken in Brazil and what is its population?"}' \
-  -H "Content-Type: application/json"
-
-# Health check
-curl http://localhost:8000/health
 ```
 
-### Example response
-
+**Response**
 ```json
 {
-  "answer": "The capital of Japan is Tokyo. Japan uses the Japanese Yen (JPY, ¥) as its currency.",
+  "answer": "The capital of Japan is Tokyo. Japan uses the Japanese Yen (JPY, ¥).",
   "country": "Japan",
   "fields_requested": ["capital", "currency"],
   "tool_status": "success"
 }
 ```
 
+**`tool_status` values**
+
+| Value | Meaning |
+|-------|---------|
+| `success` | Full data returned |
+| `partial_data` | Country found, some requested fields missing |
+| `not_found` | Country not found in REST Countries API |
+| `api_error` | Network error or API unavailable |
+
+### `GET /health`
+
+```bash
+curl http://localhost:8000/health
+# {"status": "ok", "model": "llama-3.3-70b-versatile"}
+```
+
+---
+
+## Example Scenarios
+
+**Normal query**
+```
+Q: What languages are spoken in Switzerland?
+A: Switzerland has four official languages: German, French, Italian, and Romansh.
+```
+
+**Typo correction**
+```
+Q: What is the capital of Cndia?
+A: I interpreted your query as being about India. The capital of India is New Delhi.
+```
+
+**Unrecognisable input**
+```
+Q: What is the capital of dndia?
+A: I couldn't identify a country name in your query. Could you check the spelling?
+    Example: "What is the capital of India?"
+```
+
+**Country not found**
+```
+Q: What is the capital of Xlandia?
+A: I couldn't find 'Xlandia' in the countries database. Please check the spelling.
+```
+
+---
+
 ## Running Tests
 
 ```bash
-pip install pytest pytest-asyncio respx
 pytest tests/ -v
 ```
+
+Tests cover: API client (mocked HTTP), node logic (mocked LLM), and FastAPI endpoints.
+
+---
 
 ## Docker
 
 ```bash
 docker build -t country-agent .
-docker run -p 8000:8000 -e ANTHROPIC_API_KEY=your_key country-agent
+docker run -p 8000:8000 -e GROQ_API_KEY=your_key country-agent
 ```
 
-## Production Considerations
+---
 
-- **Stateless**: The agent has no persistent state — safe to scale horizontally behind a load balancer.
-- **Shared HTTP client**: `httpx.AsyncClient` is created once at startup (via FastAPI lifespan) and reused across requests — avoids connection overhead.
-- **Structured output**: The intent node uses `with_structured_output()` to ensure deterministic field extraction (no JSON parsing errors).
-- **Error containment**: Every node catches its own exceptions and writes them into the state. `synthesis_node` always runs and always produces an answer, even for error cases.
-- **Token efficiency**: Only the fields the user asked about are passed to the synthesis LLM, not the full API payload.
+## Production Design Decisions
+
+- **Exact-match-first lookup** — queries the REST Countries API with `fullText=true` before falling back to partial search, preventing wrong results for countries like China and India.
+- **Typo transparency** — when the LLM infers a country from a misspelling, the answer explicitly states what was assumed, keeping responses grounded.
+- **Shared async HTTP client** — `httpx.AsyncClient` is created once at startup via FastAPI lifespan and reused across all requests.
+- **Structured LLM output** — `intent_node` uses `with_structured_output()` so field extraction is always a typed Pydantic object, never free-form text to parse.
+- **Error containment** — every node catches its own exceptions and writes them into the LangGraph state. `synthesis_node` always runs and always produces an answer.
+- **Token efficiency** — only the fields the user asked about are passed to the synthesis LLM, not the full 50-field API payload.
+- **Stateless** — no database, no session state. Safe to scale horizontally.
 
 ## Known Limitations & Trade-offs
 
-- **Country name disambiguation**: The REST Countries API is queried by name. Ambiguous names (e.g., "Congo") may return the first match. A production system could add a disambiguation step.
-- **No caching**: Each query hits the REST Countries API live. A Redis TTL cache on `country_name` would reduce latency and API load.
-- **LLM latency**: Two LLM calls per request (intent + synthesis). Intent could be replaced with a cheaper regex/NER approach for speed-sensitive deployments.
-- **English only**: The intent node is English-optimized. Multi-language support would require prompt changes.
-- **API dependency**: The service degrades gracefully when REST Countries is down, but cannot answer without it.
+- **No caching** — each request hits the REST Countries API live. A Redis TTL cache keyed on country name would reduce latency significantly at scale.
+- **Two LLM calls per request** — intent + synthesis. For high-throughput deployments, intent detection could be replaced with a fine-tuned NER model.
+- **English-optimised** — the intent node prompt is in English. Multi-language queries work partially but are not guaranteed.
+- **Groq rate limits** — the free tier allows ~30 requests/min. A production deployment would need a paid plan or request queuing.
