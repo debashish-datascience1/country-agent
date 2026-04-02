@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Country Information Agent</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3248;
+      --accent: #6c63ff;
+      --accent-dim: #4b44cc;
+      --text: #e8e9f0;
+      --text-muted: #7b7f9e;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --error: #ef4444;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      letter-spacing: -0.3px;
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ── Main layout ── */
+    main {
+      flex: 1;
+      max-width: 760px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 40px 20px 80px;
+    }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .hero h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #a78bfa, #6c63ff, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.2;
+      margin-bottom: 10px;
+    }
+
+    .hero p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    /* ── Query box ── */
+    .query-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .query-card label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 10px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    #queryInput {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.95rem;
+      padding: 12px 16px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    #queryInput:focus {
+      border-color: var(--accent);
+    }
+
+    #queryInput::placeholder {
+      color: var(--text-muted);
+    }
+
+    #submitBtn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 22px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #submitBtn:hover:not(:disabled) {
+      background: var(--accent-dim);
+    }
+
+    #submitBtn:active:not(:disabled) {
+      transform: scale(0.97);
+    }
+
+    #submitBtn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* ── Example chips ── */
+    .examples-label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      font-weight: 500;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .chip:hover {
+      border-color: var(--accent);
+      color: var(--text);
+      background: rgba(108, 99, 255, 0.1);
+    }
+
+    /* ── Result card ── */
+    #result {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .result-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .result-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+    }
+
+    .result-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .country-name {
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    .result-meta {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 20px;
+      border: 1px solid transparent;
+    }
+
+    .tag-success  { background: rgba(34,197,94,0.12);  border-color: rgba(34,197,94,0.3);  color: #4ade80; }
+    .tag-warning  { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.3); color: #fbbf24; }
+    .tag-error    { background: rgba(239,68,68,0.12);  border-color: rgba(239,68,68,0.3);  color: #f87171; }
+    .tag-neutral  { background: var(--surface); border-color: var(--border); color: var(--text-muted); }
+    .tag-field    { background: rgba(108,99,255,0.12); border-color: rgba(108,99,255,0.3); color: #a78bfa; }
+
+    .result-body {
+      padding: 22px 20px;
+    }
+
+    .answer-text {
+      font-size: 0.97rem;
+      line-height: 1.75;
+      color: var(--text);
+      white-space: pre-wrap;
+    }
+
+    .fields-row {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .fields-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* ── Loading ── */
+    .loading-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 14px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .steps {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 14px;
+    }
+
+    .step {
+      font-size: 0.72rem;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      transition: all 0.3s;
+    }
+
+    .step.active {
+      background: rgba(108,99,255,0.15);
+      border-color: var(--accent);
+      color: #a78bfa;
+    }
+
+    /* ── Error ── */
+    .error-card {
+      background: rgba(239,68,68,0.07);
+      border: 1px solid rgba(239,68,68,0.25);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      color: #fca5a5;
+      font-size: 0.9rem;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    /* ── Agent flow diagram ── */
+    .flow-section {
+      margin-top: 48px;
+      border-top: 1px solid var(--border);
+      padding-top: 32px;
+    }
+
+    .flow-section h2 {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 20px;
+    }
+
+    .flow {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .flow-node {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 18px;
+      min-width: 140px;
+      flex-shrink: 0;
+    }
+
+    .flow-node-icon { font-size: 1.3rem; margin-bottom: 6px; }
+    .flow-node-title { font-size: 0.82rem; font-weight: 700; margin-bottom: 3px; }
+    .flow-node-desc { font-size: 0.72rem; color: var(--text-muted); line-height: 1.4; }
+
+    .flow-arrow {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      padding: 0 8px;
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 600px) {
+      .hero h1 { font-size: 1.5rem; }
+      .input-row { flex-direction: column; }
+      #submitBtn { width: 100%; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🌍</div>
+    <span>Country Agent</span>
+  </div>
+  <div class="status-badge">
+    <span class="status-dot" id="statusDot"></span>
+    <span id="statusText">Connecting…</span>
+  </div>
+</header>
+
+<main>
+
+  <div class="hero">
+    <h1>Country Information Agent</h1>
+    <p>Powered by LangGraph + Groq · Ask anything about any country</p>
+  </div>
+
+  <!-- Query input -->
+  <div class="query-card">
+    <label for="queryInput">Your Question</label>
+    <div class="input-row">
+      <input
+        id="queryInput"
+        type="text"
+        placeholder="e.g. What is the capital and currency of Japan?"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <button id="submitBtn" onclick="submitQuery()">
+        <span id="btnIcon">→</span>
+        <span id="btnText">Ask</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Example chips -->
+  <div class="examples-label">Try an example</div>
+  <div class="chips">
+    <div class="chip" onclick="useExample(this)">What is the population of Germany?</div>
+    <div class="chip" onclick="useExample(this)">What currency does Japan use?</div>
+    <div class="chip" onclick="useExample(this)">What is the capital of Brazil?</div>
+    <div class="chip" onclick="useExample(this)">What languages are spoken in Switzerland?</div>
+    <div class="chip" onclick="useExample(this)">What region is New Zealand in?</div>
+    <div class="chip" onclick="useExample(this)">What are the borders of France?</div>
+  </div>
+
+  <!-- Result area -->
+  <div id="result" style="margin-top: 32px;"></div>
+
+  <!-- Agent flow diagram -->
+  <div class="flow-section">
+    <h2>How the Agent Works</h2>
+    <div class="flow">
+      <div class="flow-node">
+        <div class="flow-node-icon">🔍</div>
+        <div class="flow-node-title">Intent Node</div>
+        <div class="flow-node-desc">LLM extracts country name &amp; requested fields</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node">
+        <div class="flow-node-icon">🌐</div>
+        <div class="flow-node-title">Tool Node</div>
+        <div class="flow-node-desc">Calls REST Countries API with async httpx</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node">
+        <div class="flow-node-icon">✍️</div>
+        <div class="flow-node-title">Synthesis Node</div>
+        <div class="flow-node-desc">LLM formats a grounded, natural language answer</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  // ── Health check on load ──
+  async function checkHealth() {
+    try {
+      const res = await fetch('/health');
+      const data = await res.json();
+      if (data.status === 'ok') {
+        document.getElementById('statusDot').style.background = '#22c55e';
+        document.getElementById('statusText').textContent = `Ready · ${data.model}`;
+      }
+    } catch {
+      document.getElementById('statusDot').style.background = '#ef4444';
+      document.getElementById('statusText').textContent = 'Offline';
+    }
+  }
+  checkHealth();
+
+  // ── Example chips ──
+  function useExample(el) {
+    document.getElementById('queryInput').value = el.textContent;
+    document.getElementById('queryInput').focus();
+  }
+
+  // ── Enter key submits ──
+  document.getElementById('queryInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitQuery();
+  });
+
+  // ── Status tag helper ──
+  function statusTag(status) {
+    const map = {
+      success:      ['tag-success',  '✓ success'],
+      not_found:    ['tag-error',    '✗ not found'],
+      api_error:    ['tag-error',    '✗ api error'],
+      partial_data: ['tag-warning',  '⚠ partial data'],
+    };
+    const [cls, label] = map[status] || ['tag-neutral', status ?? 'n/a'];
+    return `<span class="tag ${cls}">${label}</span>`;
+  }
+
+  // ── Loading state ──
+  function showLoading() {
+    const resultEl = document.getElementById('result');
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = `
+      <div class="loading-card">
+        <div class="spinner"></div>
+        <div>Running agent…</div>
+        <div class="steps">
+          <span class="step active" id="step1">1 · Intent</span>
+          <span class="step" id="step2">2 · Fetch</span>
+          <span class="step" id="step3">3 · Synthesize</span>
+        </div>
+      </div>`;
+
+    // Animate steps
+    setTimeout(() => {
+      const s2 = document.getElementById('step2');
+      if (s2) { document.getElementById('step1').classList.remove('active'); s2.classList.add('active'); }
+    }, 800);
+    setTimeout(() => {
+      const s3 = document.getElementById('step3');
+      if (s3) { document.getElementById('step2').classList.remove('active'); s3.classList.add('active'); }
+    }, 1600);
+  }
+
+  // ── Main submit ──
+  async function submitQuery() {
+    const input = document.getElementById('queryInput');
+    const query = input.value.trim();
+    if (!query) return;
+
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    document.getElementById('btnIcon').textContent = '…';
+    document.getElementById('btnText').textContent = 'Thinking';
+
+    showLoading();
+
+    try {
+      const res = await fetch('/api/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showError(data.detail || 'Something went wrong. Please try again.');
+        return;
+      }
+
+      showResult(data);
+    } catch (err) {
+      showError('Network error — is the server running?');
+    } finally {
+      btn.disabled = false;
+      document.getElementById('btnIcon').textContent = '→';
+      document.getElementById('btnText').textContent = 'Ask';
+    }
+  }
+
+  function showResult(data) {
+    const resultEl = document.getElementById('result');
+    const fields = (data.fields_requested || []);
+    const fieldTags = fields.map(f => `<span class="tag tag-field">${f}</span>`).join('');
+    const countryHeader = data.country
+      ? `<div class="result-header-left">
+           <span style="font-size:1.4rem">🌍</span>
+           <span class="country-name">${data.country}</span>
+         </div>`
+      : `<div class="result-header-left">
+           <span style="font-size:1.4rem">💬</span>
+           <span class="country-name">Response</span>
+         </div>`;
+
+    resultEl.innerHTML = `
+      <div class="result-card">
+        <div class="result-header">
+          ${countryHeader}
+          <div class="result-meta">
+            ${statusTag(data.tool_status)}
+          </div>
+        </div>
+        <div class="result-body">
+          <div class="answer-text">${escapeHtml(data.answer)}</div>
+          ${fields.length ? `<div class="fields-row">
+            <span class="fields-label">Fields:</span>
+            ${fieldTags}
+          </div>` : ''}
+        </div>
+      </div>`;
+  }
+
+  function showError(msg) {
+    document.getElementById('result').innerHTML = `
+      <div class="error-card">
+        <span style="font-size:1.2rem;flex-shrink:0">⚠</span>
+        <span>${escapeHtml(msg)}</span>
+      </div>`;
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+</script>
+
+</body>
+</html>
