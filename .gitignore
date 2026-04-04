@@ -1,6 +1,3 @@
-# Claude Code — never commit
-.claude/
-
 # Environment — secrets
 .env
 
